@@ -33,9 +33,9 @@ def main():
         with col1:
             st.subheader("予算ファイル")
             budget_file = st.file_uploader("予算ファイルをアップロード", type=["xlsx"], key="budget")
-            if os.path.exists(BUDGET_SAVE_PATH):
+            use_saved_budget = os.path.exists(BUDGET_SAVE_PATH)
+            if use_saved_budget:
                 st.success(f"現在の予算ファイル: {BUDGET_SAVE_PATH}")
-            use_saved_budget = False
             if budget_file:
                 with open(BUDGET_SAVE_PATH, "wb") as f:
                     f.write(budget_file.getbuffer())
