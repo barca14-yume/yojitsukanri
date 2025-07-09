@@ -267,32 +267,65 @@ def main():
         result_df = result_df[keep_cols]
         # --- カスタムHTML表示 ---
         def render_card(subject, row4, row5):
-            # 見やすいカード型UI（レスポンシブ・色分け・グレーアウト対応）
-            def format_block(label, value, color):
+            # アイコンマッピング
+            icon_map = {
+                '売上高': '💰',
+                '売上総利益': '📊',
+                '販売費及び一般管理費': '💼',
+                '経常利益': '📈',
+                '原価率(%)': '⚙️',
+                '販管費率(%)': '🧾',
+            }
+            badge = ''
+            if subject in ['売上高', '経常利益']:
+                badge = '<span style="background:#ffd700;color:#444;font-size:0.85em;padding:2px 8px 2px 8px;border-radius:10px;margin-left:8px;">重要</span>'
+            icon = icon_map.get(subject, '')
+            def format_block(label, value, color, is_rate=False, is_diff=False):
                 empty = (value is None or value == '' or value == 'None')
+                # 差額色分け
+                if is_diff and not empty:
+                    try:
+                        v = float(value)
+                        color = '#27ae60' if v > 0 else ('#c0392b' if v < 0 else '#555')
+                    except: pass
+                # 達成率・前年比色分け
+                if is_rate and not empty:
+                    try:
+                        v = float(value)
+                        color = '#27ae60' if v >= 100 else ('#e67e22' if v != '' else '#555')
+                    except: pass
                 style = f"background:{'#f0f5fa' if empty else '#fff'};border-radius:8px;padding:8px 12px;margin-bottom:3px;min-width:90px;box-shadow:0 1px 3px #e3e8f0;"
-                val_style = f"font-size:1.25rem;font-weight:bold;color:{'#aaa' if empty else color};"
+                val_style = f"font-size:1.25rem;font-weight:bold;color:{'#aaa' if empty else color};display:flex;align-items:center;gap:2px;"
                 label_style = "font-size:0.93rem;color:#555;letter-spacing:0.01em;"
-                return f'<div style="{style}"><div style="{label_style}">{label}</div><div style="{val_style}">{value if not empty else "-"}</div></div>'
+                val = value if not empty else "-"
+                # 率系は%を強調
+                if is_rate and not empty:
+                    val = f"{value}<span style='font-size:1.08rem;color:{color};margin-left:2px;'>%</span>"
+                return f'<div style="{style}"><div style="{label_style}">{label}</div><div style="{val_style}">{val}</div></div>'
             return f'''
-            <div style="border-radius:13px;padding:22px 18px 18px 18px;margin-bottom:19px;background:linear-gradient(90deg,#eaf2fb 60%,#f8faff 100%);box-shadow:0 3px 12px #a3bffa18;max-width:560px;margin-left:auto;margin-right:auto;">
-                <div style="font-size:1.17rem;font-weight:700;color:#28427a;margin-bottom:12px;letter-spacing:0.01em;">{subject}</div>
-                <div style="display:flex;gap:18px;justify-content:space-between;flex-wrap:wrap;">
+            <style>
+            .card-flex {{display:flex;gap:18px;justify-content:space-between;flex-wrap:wrap;}}
+            @media (max-width: 600px) {{ .card-flex {{flex-direction:column;gap:8px;}} }}
+            .card-hover:hover {{box-shadow:0 6px 24px #6a8cff33;transform:translateY(-2px);transition:0.2s;}}
+            </style>
+            <div class="card-hover" style="border-radius:13px;padding:22px 18px 18px 18px;margin-bottom:22px;background:linear-gradient(90deg,#eaf2fb 60%,#f8faff 100%);box-shadow:0 3px 12px #a3bffa18;max-width:560px;margin-left:auto;margin-right:auto;">
+                <div style="font-size:1.17rem;font-weight:700;color:#28427a;margin-bottom:12px;letter-spacing:0.01em;display:flex;align-items:center;gap:6px;">{icon} {subject}{badge}</div>
+                <div class="card-flex">
                   <div style="flex:1;min-width:170px;">
                     <div style="font-size:1.01rem;color:#2b7cff;font-weight:600;margin-bottom:4px;">4月</div>
                     {format_block('実績', row4.get('実績'), '#2b7cff')}
                     {format_block('予算', row4.get('予算'), '#28427a')}
-                    {format_block('差額', row4.get('差額'), '#c0392b')}
-                    {format_block('対予算比', row4.get('対予算比'), '#1abc9c')}
-                    {format_block('前年比', row4.get('前年比'), '#8e44ad')}
+                    {format_block('差額', row4.get('差額'), '#c0392b', is_diff=True)}
+                    {format_block('対予算比', row4.get('対予算比'), '#1abc9c', is_rate=True)}
+                    {format_block('前年比', row4.get('前年比'), '#8e44ad', is_rate=True)}
                   </div>
                   <div style="flex:1;min-width:170px;">
                     <div style="font-size:1.01rem;color:#00b383;font-weight:600;margin-bottom:4px;">5月</div>
                     {format_block('実績', row5.get('実績'), '#00b383')}
                     {format_block('予算', row5.get('予算'), '#28427a')}
-                    {format_block('差額', row5.get('差額'), '#c0392b')}
-                    {format_block('対予算比', row5.get('対予算比'), '#1abc9c')}
-                    {format_block('前年比', row5.get('前年比'), '#8e44ad')}
+                    {format_block('差額', row5.get('差額'), '#c0392b', is_diff=True)}
+                    {format_block('対予算比', row5.get('対予算比'), '#1abc9c', is_rate=True)}
+                    {format_block('前年比', row5.get('前年比'), '#8e44ad', is_rate=True)}
                   </div>
                 </div>
             </div>
