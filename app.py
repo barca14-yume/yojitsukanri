@@ -80,8 +80,8 @@ def main():
             df[subject_col] = df[subject_col].astype(str).str.strip().str.replace(' ', '').str.replace('　', '')
             df = df.set_index(subject_col)
             # デバッグ: インデックス一覧と販売費および一般管理費の存在確認
-            st.info(f"[{os.path.basename(afile)}] 科目名インデックス: {list(df.index)}")
-            st.info(f"[{os.path.basename(afile)}] '販売費および一般管理費' 含むか: {'販売費および一般管理費' in df.index}")
+            
+            
             m = re.search(r'PL_(\d{4})年(\d{1,2})月', os.path.basename(afile))
             if m:
                 month = f"{int(m.group(2))}月"
@@ -214,7 +214,6 @@ def main():
                     cost = sales - gross_profit
                     vals = result_df[result_df["科目名"] == "販売費及び一般管理費"][f"{month}_実績"].values
                     sg_and_a = vals[0] if len(vals) > 0 and vals[0] not in [None, "", 0] else 0
-                    st.info(f"DEBUG: {month} sales={sales}, gross_profit={gross_profit}, cost={cost}, sg_and_a={sg_and_a}")
                     genka = safe_div(cost, sales)
                     han_kan = safe_div(sg_and_a, sales)
                     genka_row[f"{month}_原価率%"] = genka
@@ -224,7 +223,6 @@ def main():
                         genka_row[f"{month}_実績"] = genka
                         han_kan_row[f"{month}_実績"] = han_kan
                 except Exception as e:
-                    st.info(f"DEBUG: except発生 {e}")
                     genka_row[f"{month}_原価率%"] = ""
                     han_kan_row[f"{month}_販管費率%"] = ""
         # 経常利益の直後（index=4,5）にサマリー行を挿入
@@ -233,10 +231,6 @@ def main():
             insert_at = keijou_idx[0] + 1
         else:
             insert_at = 4
-        # デバッグ: カラム名とサマリー行の内容を出力
-        st.info(f"DEBUG: result_df.columns = {result_df.columns.tolist()}")
-        st.info(f"DEBUG: genka_row = {genka_row}")
-        st.info(f"DEBUG: han_kan_row = {han_kan_row}")
         # サマリー行をresult_df.columns順に並べてから挿入
         summary_df = pd.DataFrame([genka_row, han_kan_row])[result_df.columns]
         result_df = pd.concat([
