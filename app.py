@@ -9,53 +9,72 @@ def to_thousand_yen(x):
         return ""
 
 def main():
-    st.title("予算・実績 自動集計システム")
-    st.write("Excelファイル（予算・実績）をアップロードしてください。")
+    st.markdown("""
+# 予算・実績 自動集計システム
+---
+""")
+
+    with st.expander("❓ 使い方ガイド", expanded=True):
+        st.markdown("""
+        1. **予算ファイル（1つ）・実績ファイル（複数）をアップロード**
+        2. 保存済みファイルの確認や削除も可能
+        3. ファイルが揃うと自動で集計・プレビュー
+        4. 集計結果はExcelでダウンロードできます
+        """)
 
     import os
     BUDGET_SAVE_PATH = "予算保存用.xlsx"
-    # 予算ファイルが既に保存されている場合は自動で利用
-    if os.path.exists(BUDGET_SAVE_PATH):
-        st.success(f"現在の予算ファイル: {BUDGET_SAVE_PATH}")
-        use_saved_budget = True
-    else:
-        use_saved_budget = False
-    budget_file = st.file_uploader("予算ファイルをアップロード", type=["xlsx"])
-    if budget_file:
-        # アップロードされたファイルを保存
-        with open(BUDGET_SAVE_PATH, "wb") as f:
-            f.write(budget_file.getbuffer())
-        st.success(f"予算ファイルを保存しました: {BUDGET_SAVE_PATH}")
-        use_saved_budget = True
-    import shutil
     actual_dir = "actuals"
     os.makedirs(actual_dir, exist_ok=True)
-    actual_file = st.file_uploader("実績ファイルをアップロード（複数可）", type=["xlsx"], accept_multiple_files=True)
 
-    # アップロードされた実績ファイルを保存
-    if actual_file:
-        for afile in actual_file:
-            save_path = os.path.join(actual_dir, afile.name)
-            with open(save_path, "wb") as f:
-                f.write(afile.getbuffer())
-        st.success(f"{len(actual_file)}件の実績ファイルを保存しました。")
+    # --- ファイルアップロードUI ---
+    with st.expander("📤 ファイルアップロード・管理", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("予算ファイル")
+            budget_file = st.file_uploader("予算ファイルをアップロード", type=["xlsx"], key="budget")
+            if os.path.exists(BUDGET_SAVE_PATH):
+                st.success(f"現在の予算ファイル: {BUDGET_SAVE_PATH}")
+            use_saved_budget = False
+            if budget_file:
+                with open(BUDGET_SAVE_PATH, "wb") as f:
+                    f.write(budget_file.getbuffer())
+                st.success(f"予算ファイルを保存しました: {BUDGET_SAVE_PATH}")
+                use_saved_budget = True
+        with col2:
+            st.subheader("実績ファイル（複数可）")
+            actual_file = st.file_uploader("実績ファイルをアップロード", type=["xlsx"], accept_multiple_files=True, key="actual")
+            if actual_file:
+                for afile in actual_file:
+                    save_path = os.path.join(actual_dir, afile.name)
+                    with open(save_path, "wb") as f:
+                        f.write(afile.getbuffer())
+                st.success(f"{len(actual_file)}件の実績ファイルを保存しました。")
 
-    # 保存済み実績ファイル一覧を取得
-    saved_actual_files = [os.path.join(actual_dir, f) for f in os.listdir(actual_dir) if f.endswith(".xlsx")]
-    st.info(f"保存済み実績ファイル: {[os.path.basename(f) for f in saved_actual_files]}")
-
-    # 削除機能（複数選択可）
-    if saved_actual_files:
-        files_to_delete = st.multiselect("削除したい実績ファイルを選択", [os.path.basename(f) for f in saved_actual_files])
-        if st.button("選択したファイルを削除"):
-            for fname in files_to_delete:
-                fpath = os.path.join(actual_dir, fname)
-                if os.path.exists(fpath):
-                    os.remove(fpath)
-            st.success(f"{len(files_to_delete)}件のファイルを削除しました。画面を再読み込みしてください。")
+        st.markdown("---")
+        saved_actual_files = [os.path.join(actual_dir, f) for f in os.listdir(actual_dir) if f.endswith(".xlsx")]
+        st.info(f"保存済み実績ファイル: {[os.path.basename(f) for f in saved_actual_files]}")
+        if saved_actual_files:
+            st.subheader("実績ファイルの削除")
+            files_to_delete = st.multiselect("削除したい実績ファイルを選択", [os.path.basename(f) for f in saved_actual_files])
+            if st.button("選択したファイルを削除"):
+                for fname in files_to_delete:
+                    fpath = os.path.join(actual_dir, fname)
+                    if os.path.exists(fpath):
+                        os.remove(fpath)
+                st.success(f"{len(files_to_delete)}件のファイルを削除しました。画面を再読み込みしてください。")
+        st.markdown("---")
 
     if use_saved_budget and saved_actual_files:
         st.success("ファイルがアップロードされました。自動集計を開始します。")
+        st.markdown("---")
+        st.subheader("集計結果プレビュー（4月・5月のみ）")
+        st.markdown(
+            "<div style='background-color:#f0f2f6;border-radius:8px;padding:10px 16px 10px 16px;margin-bottom:8px;'>"
+            "<b>アップロード済みのファイルに基づき、4月・5月の主要指標を集計しています。下記テーブルは横スクロール・高さ制限付きで閲覧できます。</b>"
+            "</div>",
+            unsafe_allow_html=True
+        )
         # 予算データ読込
         budget_df = pd.read_excel(BUDGET_SAVE_PATH, skiprows=6)
         budget_subject_col = [col for col in budget_df.columns if '科目' in str(col)]
@@ -246,9 +265,13 @@ def main():
             keep_cols += [c for c in result_df.columns if c.startswith(m+"_") and not (c.endswith("原価率%") or c.endswith("販管費率%"))]
         # カラムを絞り込む
         result_df = result_df[keep_cols]
-        st.write("### 集計結果プレビュー（4月・5月のみ）")
-        st.dataframe(result_df, use_container_width=True)
-        # ダウンロードボタン
+        st.markdown(
+            "<div style='border:2px solid #A3BFFA;border-radius:8px;padding:8px 12px 8px 12px;background-color:#ffffff;'>",
+            unsafe_allow_html=True
+        )
+        st.dataframe(result_df, use_container_width=True, height=360)
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown(":blue[↓ 集計結果をExcelでダウンロード ↓]")
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             result_df.to_excel(writer, index=False)
@@ -256,8 +279,11 @@ def main():
             label="集計結果をExcelでダウンロード",
             data=output.getvalue(),
             file_name="月次予実表集計結果.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            type="primary"
         )
+        st.markdown("---")
 
 if __name__ == "__main__":
     main()
