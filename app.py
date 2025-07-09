@@ -301,8 +301,20 @@ def main():
         html_cards = ""
         for idx, row in result_df.iterrows():
             subject = row["科目名"]
-            row4 = f"実績: <b>{row.get('4月_実績','')}</b><br>予算: {row.get('4月_予算','')}<br>差額: {row.get('4月_差額','')}<br>対予算比: {row.get('4月_対予算比%','')}%<br>前年比: {row.get('4月_前年比%','')}%"
-            row5 = f"実績: <b>{row.get('5月_実績','')}</b><br>予算: {row.get('5月_予算','')}<br>差額: {row.get('5月_差額','')}<br>対予算比: {row.get('5月_対予算比%','')}%<br>前年比: {row.get('5月_前年比%','')}%"
+            row4 = {
+                '実績': row.get('4月_実績', ''),
+                '予算': row.get('4月_予算', ''),
+                '差額': row.get('4月_差額', ''),
+                '対予算比': row.get('4月_対予算比%', ''),
+                '前年比': row.get('4月_前年比%', ''),
+            }
+            row5 = {
+                '実績': row.get('5月_実績', ''),
+                '予算': row.get('5月_予算', ''),
+                '差額': row.get('5月_差額', ''),
+                '対予算比': row.get('5月_対予算比%', ''),
+                '前年比': row.get('5月_前年比%', ''),
+            }
             html_cards += render_card(subject, row4, row5)
         st.markdown(f"<div style='display:grid;gap:8px;'>{html_cards}</div>", unsafe_allow_html=True)
         st.markdown(":blue[↓ 集計結果をExcelでダウンロード ↓]")
