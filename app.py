@@ -265,12 +265,32 @@ def main():
             keep_cols += [c for c in result_df.columns if c.startswith(m+"_") and not (c.endswith("原価率%") or c.endswith("販管費率%"))]
         # カラムを絞り込む
         result_df = result_df[keep_cols]
-        st.markdown(
-            "<div style='border:2px solid #A3BFFA;border-radius:8px;padding:8px 12px 8px 12px;background-color:#ffffff;'>",
-            unsafe_allow_html=True
-        )
-        st.dataframe(result_df, use_container_width=True, height=360)
-        st.markdown("</div>", unsafe_allow_html=True)
+        # --- カスタムHTML表示 ---
+        def render_card(subject, row4, row5):
+            # row4, row5: 4月/5月の各列値（dict）
+            return f'''
+            <div style="border-radius:10px;padding:18px 20px;margin-bottom:14px;background:linear-gradient(90deg,#e3f0ff,#f8faff);box-shadow:0 2px 8px #a3bffa22;">
+                <div style="font-size:1.1rem;font-weight:bold;color:#314e89;margin-bottom:8px;">{subject}</div>
+                <div style="display:flex;gap:32px;">
+                  <div style="flex:1;">
+                    <div style="font-size:0.95rem;color:#555;">4月</div>
+                    <div style="font-size:1.5rem;font-weight:bold;color:#2b7cff;">{row4}</div>
+                  </div>
+                  <div style="flex:1;">
+                    <div style="font-size:0.95rem;color:#555;">5月</div>
+                    <div style="font-size:1.5rem;font-weight:bold;color:#00b383;">{row5}</div>
+                  </div>
+                </div>
+            </div>
+            '''
+        # 指標ごとにカードで表示
+        html_cards = ""
+        for idx, row in result_df.iterrows():
+            subject = row["科目名"]
+            row4 = f"実績: <b>{row.get('4月_実績','')}</b><br>予算: {row.get('4月_予算','')}<br>差額: {row.get('4月_差額','')}<br>対予算比: {row.get('4月_対予算比%','')}%<br>前年比: {row.get('4月_前年比%','')}%"
+            row5 = f"実績: <b>{row.get('5月_実績','')}</b><br>予算: {row.get('5月_予算','')}<br>差額: {row.get('5月_差額','')}<br>対予算比: {row.get('5月_対予算比%','')}%<br>前年比: {row.get('5月_前年比%','')}%"
+            html_cards += render_card(subject, row4, row5)
+        st.markdown(f"<div style='display:grid;gap:8px;'>{html_cards}</div>", unsafe_allow_html=True)
         st.markdown(":blue[↓ 集計結果をExcelでダウンロード ↓]")
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
