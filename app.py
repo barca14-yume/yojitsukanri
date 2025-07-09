@@ -267,18 +267,32 @@ def main():
         result_df = result_df[keep_cols]
         # --- カスタムHTML表示 ---
         def render_card(subject, row4, row5):
-            # row4, row5: 4月/5月の各列値（dict）
+            # 見やすいカード型UI（レスポンシブ・色分け・グレーアウト対応）
+            def format_block(label, value, color):
+                empty = (value is None or value == '' or value == 'None')
+                style = f"background:{'#f0f5fa' if empty else '#fff'};border-radius:8px;padding:8px 12px;margin-bottom:3px;min-width:90px;box-shadow:0 1px 3px #e3e8f0;"
+                val_style = f"font-size:1.25rem;font-weight:bold;color:{'#aaa' if empty else color};"
+                label_style = "font-size:0.93rem;color:#555;letter-spacing:0.01em;"
+                return f'<div style="{style}"><div style="{label_style}">{label}</div><div style="{val_style}">{value if not empty else "-"}</div></div>'
             return f'''
-            <div style="border-radius:10px;padding:18px 20px;margin-bottom:14px;background:linear-gradient(90deg,#e3f0ff,#f8faff);box-shadow:0 2px 8px #a3bffa22;">
-                <div style="font-size:1.1rem;font-weight:bold;color:#314e89;margin-bottom:8px;">{subject}</div>
-                <div style="display:flex;gap:32px;">
-                  <div style="flex:1;">
-                    <div style="font-size:0.95rem;color:#555;">4月</div>
-                    <div style="font-size:1.5rem;font-weight:bold;color:#2b7cff;">{row4}</div>
+            <div style="border-radius:13px;padding:22px 18px 18px 18px;margin-bottom:19px;background:linear-gradient(90deg,#eaf2fb 60%,#f8faff 100%);box-shadow:0 3px 12px #a3bffa18;max-width:560px;margin-left:auto;margin-right:auto;">
+                <div style="font-size:1.17rem;font-weight:700;color:#28427a;margin-bottom:12px;letter-spacing:0.01em;">{subject}</div>
+                <div style="display:flex;gap:18px;justify-content:space-between;flex-wrap:wrap;">
+                  <div style="flex:1;min-width:170px;">
+                    <div style="font-size:1.01rem;color:#2b7cff;font-weight:600;margin-bottom:4px;">4月</div>
+                    {format_block('実績', row4.get('実績'), '#2b7cff')}
+                    {format_block('予算', row4.get('予算'), '#28427a')}
+                    {format_block('差額', row4.get('差額'), '#c0392b')}
+                    {format_block('対予算比', row4.get('対予算比'), '#1abc9c')}
+                    {format_block('前年比', row4.get('前年比'), '#8e44ad')}
                   </div>
-                  <div style="flex:1;">
-                    <div style="font-size:0.95rem;color:#555;">5月</div>
-                    <div style="font-size:1.5rem;font-weight:bold;color:#00b383;">{row5}</div>
+                  <div style="flex:1;min-width:170px;">
+                    <div style="font-size:1.01rem;color:#00b383;font-weight:600;margin-bottom:4px;">5月</div>
+                    {format_block('実績', row5.get('実績'), '#00b383')}
+                    {format_block('予算', row5.get('予算'), '#28427a')}
+                    {format_block('差額', row5.get('差額'), '#c0392b')}
+                    {format_block('対予算比', row5.get('対予算比'), '#1abc9c')}
+                    {format_block('前年比', row5.get('前年比'), '#8e44ad')}
                   </div>
                 </div>
             </div>
