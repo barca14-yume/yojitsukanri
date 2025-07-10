@@ -27,6 +27,7 @@ def main():
     actual_dir = "actuals"
     os.makedirs(actual_dir, exist_ok=True)
 
+
     # --- ファイルアップロードUI ---
     with st.expander("📤 ファイルアップロード・管理", expanded=True):
         col1, col2 = st.columns(2)
@@ -75,37 +76,52 @@ def main():
             "</div>",
             unsafe_allow_html=True
         )
+        # 集計処理開始（デバッグ表示削除済み）
         # 予算データ読込
-        budget_df = pd.read_excel(BUDGET_SAVE_PATH, skiprows=6)
+        try:
+            budget_df = pd.read_excel(BUDGET_SAVE_PATH, skiprows=6)
+            # st.write("DEBUG: 予算データ読み込み", budget_df.head())
+        except Exception as e:
+            st.error(f"予算ファイル読込エラー: {e}")
+            return
         budget_subject_col = [col for col in budget_df.columns if '科目' in str(col)]
+
         if budget_subject_col:
             budget_subject_col = budget_subject_col[0]
+
         else:
             st.error(f"予算ファイルに科目名列が見つかりません: {budget_df.columns.tolist()}")
             return
         months = [col for col in budget_df.columns if col not in [budget_subject_col, 'Unnamed: 13']]
+        # デバッグ用出力（削除済み）
         # 実績データ読込
         actual_data = {}
         import re
         for afile in saved_actual_files:
-            df = pd.read_excel(afile, skiprows=6)
+            try:
+                df = pd.read_excel(afile, skiprows=6)
+                # デバッグ用出力（削除済み）
+            except Exception as e:
+                st.error(f"実績ファイル読込エラー({afile}): {e}")
+                return
             col_candidates = [col for col in df.columns if '科目' in str(col).replace(' ', '').replace('　', '')]
+
             if col_candidates:
                 subject_col = col_candidates[0]
+
             else:
                 st.error(f"実績ファイルに科目名列が見つかりません: {df.columns.tolist()}")
                 return
             # インデックス正規化
             df[subject_col] = df[subject_col].astype(str).str.strip().str.replace(' ', '').str.replace('　', '')
             df = df.set_index(subject_col)
-            # デバッグ: インデックス一覧と販売費および一般管理費の存在確認
-            
-            
+
             m = re.search(r'PL_(\d{4})年(\d{1,2})月', os.path.basename(afile))
             if m:
                 month = f"{int(m.group(2))}月"
             else:
                 month = os.path.basename(afile)
+
             actual_data[month] = df
         # 実績カラム名マッピング
         actual_file_map = {}
@@ -302,34 +318,15 @@ def main():
                 if is_rate and not empty:
                     val = f"{value}<span style='font-size:1.08rem;color:{color};margin-left:2px;'>%</span>"
                 return f'<div style="{style}"><div style="{label_style}">{label}</div><div style="{val_style}">{val}</div></div>'
-            return f'''
-            <style>
-            .card-flex {{display:flex;gap:18px;justify-content:space-between;flex-wrap:wrap;}}
-            @media (max-width: 600px) {{ .card-flex {{flex-direction:column;gap:8px;}} }}
-            .card-hover:hover {{box-shadow:0 6px 24px #6a8cff33;transform:translateY(-2px);transition:0.2s;}}
-            </style>
-            <div class="card-hover" style="border-radius:13px;padding:22px 18px 18px 18px;margin-bottom:22px;background:linear-gradient(90deg,#eaf2fb 60%,#f8faff 100%);box-shadow:0 3px 12px #a3bffa18;max-width:560px;margin-left:auto;margin-right:auto;">
-                <div style="font-size:1.17rem;font-weight:700;color:#28427a;margin-bottom:12px;letter-spacing:0.01em;display:flex;align-items:center;gap:6px;">{icon} {subject}{badge}</div>
-                <div class="card-flex">
-                  <div style="flex:1;min-width:170px;">
-                    <div style="font-size:1.01rem;color:#2b7cff;font-weight:600;margin-bottom:4px;">4月</div>
-                    {format_block('実績', row4.get('実績'), '#2b7cff')}
-                    {format_block('予算', row4.get('予算'), '#28427a')}
-                    {format_block('差額', row4.get('差額'), '#c0392b', is_diff=True)}
-                    {format_block('対予算比', row4.get('対予算比'), '#1abc9c', is_rate=True)}
-                    {format_block('前年比', row4.get('前年比'), '#8e44ad', is_rate=True)}
-                  </div>
-                  <div style="flex:1;min-width:170px;">
-                    <div style="font-size:1.01rem;color:#00b383;font-weight:600;margin-bottom:4px;">5月</div>
-                    {format_block('実績', row5.get('実績'), '#00b383')}
-                    {format_block('予算', row5.get('予算'), '#28427a')}
-                    {format_block('差額', row5.get('差額'), '#c0392b', is_diff=True)}
-                    {format_block('対予算比', row5.get('対予算比'), '#1abc9c', is_rate=True)}
-                    {format_block('前年比', row5.get('前年比'), '#8e44ad', is_rate=True)}
-                  </div>
-                </div>
-            </div>
-            '''
+            return f'<div class="card-hover" style="border-radius:13px;padding:22px 18px 18px 18px;margin-bottom:22px;background:linear-gradient(90deg,#eaf2fb 60%,#f8faff 100%);box-shadow:0 3px 12px #a3bffa18;max-width:560px;margin-left:auto;margin-right:auto;"><div style="font-size:1.17rem;font-weight:700;color:#28427a;margin-bottom:12px;letter-spacing:0.01em;display:flex;align-items:center;gap:6px;">{icon} {subject}{badge}</div><div class="card-flex"><div style="flex:1;min-width:170px;"><div style="font-size:1.01rem;color:#2b7cff;font-weight:600;margin-bottom:4px;">4月</div>{format_block('実績', row4.get('実績'), '#2b7cff')}{format_block('予算', row4.get('予算'), '#28427a')}{format_block('差額', row4.get('差額'), '#c0392b', is_diff=True)}{format_block('対予算比', row4.get('対予算比'), '#1abc9c', is_rate=True)}{format_block('前年比', row4.get('前年比'), '#8e44ad', is_rate=True)}</div><div style="flex:1;min-width:170px;"><div style="font-size:1.01rem;color:#00b383;font-weight:600;margin-bottom:4px;">5月</div>{format_block('実績', row5.get('実績'), '#00b383')}{format_block('予算', row5.get('予算'), '#28427a')}{format_block('差額', row5.get('差額'), '#c0392b', is_diff=True)}{format_block('対予算比', row5.get('対予算比'), '#1abc9c', is_rate=True)}{format_block('前年比', row5.get('前年比'), '#8e44ad', is_rate=True)}</div></div></div>'
+        # --- CSSを1回だけグローバルに出す ---
+        st.markdown("""
+        <style>
+        .card-flex {display:flex;gap:18px;justify-content:space-between;flex-wrap:wrap;}
+        @media (max-width: 600px) { .card-flex {flex-direction:column;gap:8px;} }
+        .card-hover:hover {box-shadow:0 6px 24px #6a8cff33;transform:translateY(-2px);transition:0.2s;}
+        </style>
+        """, unsafe_allow_html=True)
         # 指標ごとにカードで表示
         html_cards = ""
         for idx, row in result_df.iterrows():
@@ -349,7 +346,11 @@ def main():
                 '前年比': row.get('5月_前年比%', ''),
             }
             html_cards += render_card(subject, row4, row5)
-        st.markdown(f"<div style='display:grid;gap:8px;'>{html_cards}</div>", unsafe_allow_html=True)
+        # st.write("DEBUG: html_cards 内容", html_cards)
+        html = "<div style='display:grid;gap:8px;'>" + html_cards + "</div>"
+        if html_cards.strip():
+            st.markdown(html, unsafe_allow_html=True)
+        # st.write("DEBUG: st.markdown(unsafe_allow_html=True) 実行済み")
         st.markdown(":blue[↓ 集計結果をExcelでダウンロード ↓]")
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
