@@ -281,12 +281,17 @@ def main():
             keep_cols += [c for c in result_df.columns if c.startswith(m+"_") and not (c.endswith("原価率%") or c.endswith("販管費率%"))]
         # カラムを絞り込む
         result_df = result_df[keep_cols]
-        # --- カスタムHTML表示 ---
+        # --- 販売費及び一般管理費の明細分析 ---
+        # 5月の実績データから「販売費及び一般管理費」配下のみ抽出
+        sg_subject = "販売費及び一般管理費"
+        may_file = actual_file_map.get("5月", None)
+        may_col = actual_col_map.get("5月", None)
+        apr_file = actual_file_map.get("4月", None)
+
         def render_card(subject, row4, row5):
-            # アイコンマッピング
             icon_map = {
-                '売上高': '💰',
-                '売上総利益': '📊',
+                '売上高': '💸',
+                '売上総利益': '📈',
                 '販売費及び一般管理費': '💼',
                 '経常利益': '📈',
                 '原価率(%)': '⚙️',
@@ -298,25 +303,29 @@ def main():
             icon = icon_map.get(subject, '')
             def format_block(label, value, color, is_rate=False, is_diff=False):
                 empty = (value is None or value == '' or value == 'None')
-                # 差額色分け
+                # 色は全て黒（#222）、ただし差額でマイナスのみ赤
+                base_color = '#222'
                 if is_diff and not empty:
                     try:
                         v = float(value)
-                        color = '#27ae60' if v > 0 else ('#c0392b' if v < 0 else '#555')
-                    except: pass
-                # 達成率・前年比色分け
-                if is_rate and not empty:
-                    try:
-                        v = float(value)
-                        color = '#27ae60' if v >= 100 else ('#e67e22' if v != '' else '#555')
-                    except: pass
+                        if v < 0:
+                            base_color = '#ff1744'  # 鮮やかな赤
+                    except:
+                        pass
                 style = f"background:{'#f0f5fa' if empty else '#fff'};border-radius:8px;padding:8px 12px;margin-bottom:3px;min-width:90px;box-shadow:0 1px 3px #e3e8f0;"
-                val_style = f"font-size:1.25rem;font-weight:bold;color:{'#aaa' if empty else color};display:flex;align-items:center;gap:2px;"
+                val_style = f"font-size:1.25rem;font-weight:bold;color:{'#aaa' if empty else base_color};display:flex;align-items:center;gap:2px;"
                 label_style = "font-size:0.93rem;color:#555;letter-spacing:0.01em;"
-                val = value if not empty else "-"
+                # 金額系はカンマ区切り
+                if not empty and not is_rate:
+                    try:
+                        val = f"{int(float(value)):,}"
+                    except:
+                        val = value
+                else:
+                    val = value if not empty else "-"
                 # 率系は%を強調
                 if is_rate and not empty:
-                    val = f"{value}<span style='font-size:1.08rem;color:{color};margin-left:2px;'>%</span>"
+                    val = f"{value}<span style='font-size:1.08rem;color:{base_color};margin-left:2px;'>%</span>"
                 return f'<div style="{style}"><div style="{label_style}">{label}</div><div style="{val_style}">{val}</div></div>'
             return f'<div class="card-hover" style="border-radius:13px;padding:22px 18px 18px 18px;margin-bottom:22px;background:linear-gradient(90deg,#eaf2fb 60%,#f8faff 100%);box-shadow:0 3px 12px #a3bffa18;max-width:560px;margin-left:auto;margin-right:auto;"><div style="font-size:1.17rem;font-weight:700;color:#28427a;margin-bottom:12px;letter-spacing:0.01em;display:flex;align-items:center;gap:6px;">{icon} {subject}{badge}</div><div class="card-flex"><div style="flex:1;min-width:170px;"><div style="font-size:1.01rem;color:#2b7cff;font-weight:600;margin-bottom:4px;">4月</div>{format_block('実績', row4.get('実績'), '#2b7cff')}{format_block('予算', row4.get('予算'), '#28427a')}{format_block('差額', row4.get('差額'), '#c0392b', is_diff=True)}{format_block('対予算比', row4.get('対予算比'), '#1abc9c', is_rate=True)}{format_block('前年比', row4.get('前年比'), '#8e44ad', is_rate=True)}</div><div style="flex:1;min-width:170px;"><div style="font-size:1.01rem;color:#00b383;font-weight:600;margin-bottom:4px;">5月</div>{format_block('実績', row5.get('実績'), '#00b383')}{format_block('予算', row5.get('予算'), '#28427a')}{format_block('差額', row5.get('差額'), '#c0392b', is_diff=True)}{format_block('対予算比', row5.get('対予算比'), '#1abc9c', is_rate=True)}{format_block('前年比', row5.get('前年比'), '#8e44ad', is_rate=True)}</div></div></div>'
         # --- CSSを1回だけグローバルに出す ---
@@ -364,6 +373,84 @@ def main():
             type="primary"
         )
         st.markdown("---")
+
+        # --- 販売費及び一般管理費の明細ピックアップ（月別・前年比/前月比110%以上・90%以下） ---
+        for target_month, target_file, target_col, prev_col in [
+            ("4月", actual_file_map.get("4月", None), actual_col_map.get("4月", None), None),
+            ("5月", actual_file_map.get("5月", None), actual_col_map.get("5月", None), prev_actual_col_map.get(("5月", actual_file_map.get("5月", None)), None))
+        ]:
+            pick_rows = []
+            if target_file and target_col:
+                df = actual_data[target_file]
+                # 前年データは5月のみ
+                df_prev = actual_data[target_file] if prev_col and target_month == "5月" else None
+                # 前月データ（4月はなし）
+                df_prev_month = actual_data[actual_file_map.get("4月", None)] if target_month == "5月" and actual_file_map.get("4月", None) else None
+                prev_month_col = actual_col_map.get("4月", None) if target_month == "5月" else None
+                # 役員報酬～雑費の範囲だけピックアップ
+                idx_list = list(df.index)
+                try:
+                    start_idx = idx_list.index("役員報酬")
+                    end_idx = idx_list.index("雑費")
+                    if start_idx > end_idx:
+                        detail_subjects = []
+                    else:
+                        detail_subjects = idx_list[start_idx:end_idx+1]
+                except ValueError:
+                    detail_subjects = []
+                for subject in detail_subjects:
+                    try:
+                        val = df.at[subject, target_col]
+                        # 前年比（5月のみ）
+                        if target_month == "5月" and df_prev is not None and prev_col and subject in df_prev.index:
+                            prev_val = df_prev.at[subject, prev_col]
+                            yoy = round(float(val) / float(prev_val) * 100, 1) if prev_val not in [None, "", 0] and val not in [None, "", 0] else None
+                        else:
+                            yoy = None
+                        # 前月比（5月のみ）
+                        if target_month == "5月" and df_prev_month is not None and prev_month_col and subject in df_prev_month.index:
+                            prev_month_val = df_prev_month.at[subject, prev_month_col]
+                            mom = round(float(val) / float(prev_month_val) * 100, 1) if prev_month_val not in [None, "", 0] and val not in [None, "", 0] else None
+                        else:
+                            mom = None
+                        pick_rows.append({
+                            "科目名": subject,
+                            "金額": f"{int(float(val)):,}" if val not in [None, "", 0] else None,
+                            "前年比": yoy,
+                            "前月比": mom
+                        })
+                    except:
+                        continue
+            # 高い順・低い順でソート
+            if pick_rows:
+                df_pick = pd.DataFrame(pick_rows)
+                st.markdown(f"#### 販売費及び一般管理費の明細（{target_month}） 前年比・前月比ピックアップ")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if target_month == "4月":
+                        st.markdown("**金額が110%以上**")
+                        df_over_110 = df_pick[(df_pick["金額"].notnull()) & (df_pick["金額"].apply(lambda x: int(str(x).replace(',', '')) if x not in [None, "", 0] else 0) >= 110)]
+                        st.dataframe(df_over_110.sort_values("金額", ascending=False)[["科目名", "金額"]], use_container_width=True)
+                        st.markdown("**金額が90%以下**")
+                        df_under_90 = df_pick[(df_pick["金額"].notnull()) & (df_pick["金額"].apply(lambda x: int(str(x).replace(',', '')) if x not in [None, "", 0] else 0) <= 90)]
+                        st.dataframe(df_under_90.sort_values("金額", ascending=True)[["科目名", "金額"]], use_container_width=True)
+                    else:
+                        st.markdown("**前年比が110%以上**")
+                        df_over_110 = df_pick[(df_pick["前年比"].notnull()) & (df_pick["前年比"] >= 110)]
+                        st.dataframe(df_over_110.sort_values("前年比", ascending=False)[["科目名", "金額", "前年比", "前月比"]], use_container_width=True)
+                        st.markdown("**前年比が90%以下**")
+                        df_under_90 = df_pick[(df_pick["前年比"].notnull()) & (df_pick["前年比"] <= 90)]
+                        st.dataframe(df_under_90.sort_values("前年比", ascending=True)[["科目名", "金額", "前年比", "前月比"]], use_container_width=True)
+                with col2:
+                    if target_month == "4月":
+                        st.markdown("")
+                    else:
+                        st.markdown("**前月比が110%以上**")
+                        df_mom_over_110 = df_pick[(df_pick["前月比"].notnull()) & (df_pick["前月比"] >= 110)]
+                        st.dataframe(df_mom_over_110.sort_values("前月比", ascending=False)[["科目名", "金額", "前年比", "前月比"]], use_container_width=True)
+                        st.markdown("**前月比が90%以下**")
+                        df_mom_under_90 = df_pick[(df_pick["前月比"].notnull()) & (df_pick["前月比"] <= 90)]
+                        st.dataframe(df_mom_under_90.sort_values("前月比", ascending=True)[["科目名", "金額", "前年比", "前月比"]], use_container_width=True)
 
 if __name__ == "__main__":
     main()
